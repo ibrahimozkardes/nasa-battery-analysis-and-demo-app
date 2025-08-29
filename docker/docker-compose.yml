@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # NASA Battery Prediction API - Pil Tahmini API'si
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8001:8001"
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - nasa-battery-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # NASA Battery Demo Web App - Web Demo Uygulaması
+  demo:
+    build:
+      context: .
+      dockerfile: Dockerfile.demo
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - API_BASE_URL=http://api:8001
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - nasa-battery-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  nasa-battery-network:
+    driver: bridge
+
+volumes:
+  logs:
+    driver: local

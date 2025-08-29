@@ -1,0 +1,22 @@
+{
+  "name": "nasa-battery-demo",
+  "version": "1.0.0",
+  "description": "NASA Battery SoH/SoC Prediction Demo Application",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.4.0",
+    "ejs": "^3.1.9",
+    "body-parser": "^1.20.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": ["battery", "soh", "soc", "nasa", "machine-learning", "api"],
+  "author": "NASA Battery Analysis Team",
+  "license": "MIT"
+}

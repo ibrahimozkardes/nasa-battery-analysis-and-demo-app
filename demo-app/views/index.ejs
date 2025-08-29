@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NASA Battery SoH/SoC Prediction Demo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .status-healthy { color: #28a745; }
+        .status-unhealthy { color: #dc3545; }
+        .prediction-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border-radius: 15px;
+        }
+        .feature-card {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border-radius: 10px;
+        }
+        .confidence-bar {
+            height: 20px;
+            background: linear-gradient(90deg, #ff4757, #ffa502, #2ed573);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="gradient-bg py-4">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1><i class="fas fa-battery-three-quarters me-2"></i>NASA Battery Health Predictor</h1>
+                    <p class="mb-0">State of Health (SoH) and Capacity Prediction System</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="d-flex align-items-center justify-content-end">
+                        <i class="fas fa-circle <%= apiStatus.status === 'healthy' ? 'status-healthy' : 'status-unhealthy' %> me-2"></i>
+                        <span>API Status: <%= apiStatus.status.toUpperCase() %></span>
+                    </div>
+                    <% if (modelInfo) { %>
+                    <small>Models: <%= Object.keys(modelInfo).length %> loaded</small>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container my-5">
+        <div class="row">
+            <!-- Input Form -->
+            <div class="col-md-6">
+                <div class="card shadow">
+                    <div class="card-header bg-primary text-white">
+                        <h4><i class="fas fa-sliders-h me-2"></i>Battery Parameters</h4>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="/predict" id="predictionForm">
+                            <!-- Battery Type -->
+                            <div class="mb-3">
+                                <label class="form-label">Battery Type</label>
+                                <select name="battery_type" class="form-select" required>
+                                    <option value="B0005" <%= (inputData && inputData.battery_type === 'B0005') ? 'selected' : '' %>>B0005 - Standard</option>
+                                    <option value="B0006" <%= (inputData && inputData.battery_type === 'B0006') ? 'selected' : '' %>>B0006 - High Capacity</option>
+                                    <option value="B0018" <%= (inputData && inputData.battery_type === 'B0018') ? 'selected' : '' %>>B0018 - Durable</option>
+                                </select>
+                            </div>
+
+                            <!-- Voltage Parameters -->
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Start Voltage (V)</label>
+                                        <input type="number" name="voltage_start" class="form-control" 
+                                               step="0.01" min="0" max="5" 
+                                               value="<%= inputData ? inputData.voltage_start : 4.19 %>" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">End Voltage (V)</label>
+                                        <input type="number" name="voltage_end" class="form-control" 
+                                               step="0.01" min="0" max="5"
+                                               value="<%= inputData ? inputData.voltage_end : 3.28 %>" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Mean Voltage (V)</label>
+                                        <input type="number" name="voltage_mean" class="form-control" 
+                                               step="0.01" min="0" max="5"
+                                               value="<%= inputData ? inputData.voltage_mean : 3.53 %>" required>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Current and Temperature -->
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Voltage Std Dev</label>
+                                        <input type="number" name="voltage_std" class="form-control" 
+                                               step="0.01" min="0" max="1"
+                                               value="<%= inputData ? inputData.voltage_std : 0.24 %>" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Current (A)</label>
+                                        <input type="number" name="current_mean" class="form-control" 
+                                               step="0.01" max="0"
+                                               value="<%= inputData ? inputData.current_mean : -1.82 %>" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Temperature (°C)</label>
+                                        <input type="number" name="temp_mean" class="form-control" 
+                                               step="0.1" min="0" max="50"
+                                               value="<%= inputData ? inputData.temp_mean : 32.5 %>" required>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Energy and Duration -->
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Temp Rise (°C)</label>
+                                        <input type="number" name="temp_rise" class="form-control" 
+                                               step="0.1" min="0" max="20"
+                                               value="<%= inputData ? inputData.temp_rise : 9.9 %>" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Energy (Wh)</label>
+                                        <input type="number" name="energy_delivered" class="form-control" 
+                                               step="0.01" min="0"
+                                               value="<%= inputData ? inputData.energy_delivered : 6.61 %>" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Duration (s)</label>
+                                        <input type="number" name="discharge_duration" class="form-control" 
+                                               step="1" min="0"
+                                               value="<%= inputData ? inputData.discharge_duration : 3690 %>" required>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Cycle Number -->
+                            <div class="mb-3">
+                                <label class="form-label">Cycle Number</label>
+                                <input type="number" name="cycle_number" class="form-control" 
+                                       min="1" max="1000"
+                                       value="<%= inputData ? inputData.cycle_number : 1 %>" required>
+                            </div>
+
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-calculator me-2"></i>Predict SoH & Capacity
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Sample Data Buttons -->
+                        <div class="mt-3">
+                            <h6>Quick Load Sample Data:</h6>
+                            <div class="btn-group-vertical w-100">
+                                <button class="btn btn-outline-secondary btn-sm" onclick="loadSampleData('b0005_early')">
+                                    B0005 Early (Cycle 1) - Healthy
+                                </button>
+                                <button class="btn btn-outline-warning btn-sm" onclick="loadSampleData('b0005_late')">
+                                    B0005 Late (Cycle 150) - Degraded
+                                </button>
+                                <button class="btn btn-outline-info btn-sm" onclick="loadSampleData('b0006_sample')">
+                                    B0006 Sample (Cycle 100)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div class="col-md-6">
+                <% if (prediction) { %>
+                <!-- Prediction Results -->
+                <div class="card shadow mb-4 prediction-card">
+                    <div class="card-header">
+                        <h4><i class="fas fa-chart-line me-2"></i>Prediction Results</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <h2><%= prediction.soh_prediction %>%</h2>
+                                    <p class="mb-1">State of Health (SoH)</p>
+                                    <div class="progress" style="height: 10px;">
+                                        <div class="progress-bar bg-success" style="width: <%= prediction.soh_prediction %>%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <h2><%= prediction.capacity_prediction %> Ah</h2>
+                                    <p class="mb-1">Current Capacity</p>
+                                    <div class="progress" style="height: 10px;">
+                                        <div class="progress-bar bg-info" style="width: <%= (prediction.capacity_prediction / 2.1 * 100) %>%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Confidence Metrics -->
+                        <div class="mt-4">
+                            <h6>Prediction Confidence: <%= prediction.confidence_metrics.overall_confidence.toFixed(1) %>%</h6>
+                            <div class="confidence-bar mb-2"></div>
+                            
+                            <div class="row small">
+                                <div class="col-6">
+                                    <i class="fas fa-<%= prediction.confidence_metrics.voltage_range_check ? 'check text-success' : 'times text-danger' %>"></i>
+                                    Voltage Range
+                                </div>
+                                <div class="col-6">
+                                    <i class="fas fa-<%= prediction.confidence_metrics.current_range_check ? 'check text-success' : 'times text-danger' %>"></i>
+                                    Current Range
+                                </div>
+                                <div class="col-6">
+                                    <i class="fas fa-<%= prediction.confidence_metrics.temp_range_check ? 'check text-success' : 'times text-danger' %>"></i>
+                                    Temperature
+                                </div>
+                                <div class="col-6">
+                                    <i class="fas fa-<%= prediction.confidence_metrics.soh_range_check ? 'check text-success' : 'times text-danger' %>"></i>
+                                    SoH Plausible
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Derived Features -->
+                <div class="card shadow feature-card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-cogs me-2"></i>Calculated Features</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-6">
+                                <strong>Voltage Drop:</strong><br>
+                                <span class="h6"><%= prediction.derived_features.voltage_drop %>V</span>
+                            </div>
+                            <div class="col-6">
+                                <strong>Voltage Efficiency:</strong><br>
+                                <span class="h6"><%= (prediction.derived_features.voltage_efficiency * 100).toFixed(1) %>%</span>
+                            </div>
+                            <div class="col-6">
+                                <strong>Power Density:</strong><br>
+                                <span class="h6"><%= prediction.derived_features.power_density.toFixed(2) %>W</span>
+                            </div>
+                            <div class="col-6">
+                                <strong>Energy Efficiency:</strong><br>
+                                <span class="h6"><%= (prediction.derived_features.energy_efficiency * 100).toFixed(1) %>%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <% } else if (error) { %>
+                <!-- Error Display -->
+                <div class="alert alert-danger">
+                    <h5><i class="fas fa-exclamation-triangle me-2"></i>Error</h5>
+                    <p><%= error %></p>
+                </div>
+
+                <% } else { %>
+                <!-- Welcome Message -->
+                <div class="card shadow">
+                    <div class="card-body text-center">
+                        <i class="fas fa-battery-three-quarters fa-3x text-primary mb-3"></i>
+                        <h4>Welcome to NASA Battery Predictor</h4>
+                        <p class="text-muted">Enter battery parameters on the left to get SoH and capacity predictions powered by machine learning.</p>
+                        
+                        <% if (modelInfo) { %>
+                        <div class="mt-4">
+                            <h6>Loaded Models:</h6>
+                            <% Object.keys(modelInfo).forEach(model => { %>
+                            <div class="badge bg-success me-2">
+                                <%= model.replace('_model', '').toUpperCase() %>: <%= modelInfo[model].type %>
+                            </div>
+                            <% }); %>
+                        </div>
+                        <% } %>
+                    </div>
+                </div>
+                <% } %>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-white py-3 mt-5">
+        <div class="container text-center">
+            <p>&copy; 2025 NASA Battery Analysis System. Powered by Machine Learning & FastAPI.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Sample data loading
+        async function loadSampleData(sampleType) {
+            try {
+                const response = await fetch('/api/sample-data');
+                const sampleData = await response.json();
+                const data = sampleData[sampleType];
+                
+                if (data) {
+                    // Form alanlarını doldur
+                    Object.keys(data).forEach(key => {
+                        const input = document.querySelector(`[name="${key}"]`);
+                        if (input) {
+                            input.value = data[key];
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading sample data:', error);
+            }
+        }
+
+        // Form validation
+        document.getElementById('predictionForm').addEventListener('submit', function(e) {
+            const voltageStart = parseFloat(document.querySelector('[name="voltage_start"]').value);
+            const voltageEnd = parseFloat(document.querySelector('[name="voltage_end"]').value);
+            
+            if (voltageEnd >= voltageStart) {
+                alert('End voltage should be less than start voltage for discharge cycle!');
+                e.preventDefault();
+                return false;
+            }
+        });
+    </script>
+</body>
+</html>

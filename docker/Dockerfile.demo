@@ -1,0 +1,24 @@
+# NASA Battery Demo App Dockerfile
+FROM node:18-alpine
+
+# Çalışma dizinini ayarla
+WORKDIR /app
+
+# Package dosyalarını kopyala
+COPY demo-app/package*.json ./
+
+# Bağımlılıkları yükle
+RUN npm ci --only=production
+
+# Uygulama dosyalarını kopyala
+COPY demo-app/ .
+
+# Port'u aç
+EXPOSE 3000
+
+# Sağlık kontrolü
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1
+
+# Uygulamayı çalıştır
+CMD ["npm", "start"]
