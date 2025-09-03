@@ -13,6 +13,7 @@ import numpy as np
 import uvicorn
 from pathlib import Path
 import logging
+import os
 
 # Logging kurulumu
 logging.basicConfig(level=logging.INFO)
@@ -99,10 +100,14 @@ class HealthStatus(BaseModel):
 def load_models():
     """Eğitilmiş modelleri ve scaler'ları yükle"""
     try:
-        # Temel path'i belirle
-        import os
-        base_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        models_path = os.path.join(base_path, 'models')
+        # Docker container için direkt path kullan
+        models_path = '/app/models'
+        
+        # Eğer Docker'da değilsek, normal path'i kullan
+        if not os.path.exists(models_path):
+            # Temel path'i belirle
+            base_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            models_path = os.path.join(base_path, 'models')
         
         # SoH modeli ve scaler
         models['soh'] = joblib.load(os.path.join(models_path, 'best_soh_model.pkl'))

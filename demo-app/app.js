@@ -5,7 +5,7 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const API_BASE_URL = 'http://localhost:8001';
+const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:8001';
 
 // Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -40,7 +40,8 @@ app.get('/', async (req, res) => {
             apiStatus: { status: 'unhealthy', error: error.message },
             modelInfo: null,
             prediction: null,
-            error: 'API connection failed'
+            error: 'API connection failed',
+            inputData: null
         });
     }
 });

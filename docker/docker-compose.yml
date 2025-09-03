@@ -4,8 +4,8 @@ services:
   # NASA Battery Prediction API - Pil Tahmini API'si
   api:
     build:
-      context: .
-      dockerfile: Dockerfile.api
+      context: ..
+      dockerfile: docker/Dockerfile.api
     ports:
       - "8001:8001"
     environment:
@@ -25,8 +25,8 @@ services:
   # NASA Battery Demo Web App - Web Demo Uygulaması
   demo:
     build:
-      context: .
-      dockerfile: Dockerfile.demo
+      context: ..
+      dockerfile: docker/Dockerfile.demo
     ports:
       - "3000:3000"
     environment:
